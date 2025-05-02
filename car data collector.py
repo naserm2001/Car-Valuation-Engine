@@ -28,7 +28,7 @@ cursor.execute('''create table if not exists detail(
                city varchar(225),
                price bigint)''')
 
-for page in range(1,6) :
+for page in range(1,31) :
     print('collecting data from page ',page)
     response = httpx.get(base_url + str(page), headers=headers)
 
