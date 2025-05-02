@@ -36,7 +36,6 @@ This repository contains a Python script (`car_data_collector.py`) that builds a
 ## How to Run the Script
 
 1.Clone the repository:
-    '''bash
     
     git clone https://github.com/your-username/your-repository.git
     cd your-repository
@@ -44,21 +43,20 @@ This repository contains a Python script (`car_data_collector.py`) that builds a
 2.Configure the database connection inside the script.
 
 3.Run the script:
-   '''bash
+   
     
     python car_data_collector.py
 
 3.Enter the requested car details when prompted.
 
 ### Example Output
-  '''bash
 
-    Enter car brand : پژو
-    Enter car model : 207
+    Enter car brand : هیوندای
+    Enter car model : سوناتا
     Enter mileage (km) : 50000
-    Enter manufacturing year : 1397
+    Enter manufacturing year : 1393
 
-    Predicted market price : 1,500,000,000 million tomans.
+    Predicted market price is 2,850,000,000 million tomans.
     Model accuracy (R² score) : 85.00%
 
 ## License
