@@ -2,11 +2,17 @@ import httpx
 import json
 import mysql.connector
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.preprocessing import LabelEncoder
 import numpy as np
 from jdatetime import date as jdate
 from datetime import date
 from sklearn.metrics import r2_score
+import os
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import make_pipeline
+import pandas as pd
+
 
 base_url = 'https://bama.ir/cad/api/search?seller=1&pageIndex='
 
@@ -25,12 +31,15 @@ cursor.execute('''create table if not exists detail(
                model varchar(225),
                mileage varchar(225),
                 year int,
-               city varchar(225),
                price bigint)''')
 
-for page in range(1,31) :
+for page in range(1,51) :
     print('collecting data from page ',page)
-    response = httpx.get(base_url + str(page), headers=headers)
+    
+    try:
+        response = httpx.get(base_url + str(page), headers=headers)
+    except Exception as e:
+         print('Error in prediction : ', e)
 
     data = json.loads(response.text)
 
@@ -65,8 +74,7 @@ for page in range(1,31) :
                 'brand' : brand.replace(",", "").replace(" ", "").strip(),
                 'model' : model.replace(",", "").replace(" ", "").strip(),
                 'mileage' : int(mileage),
-                'year' : year,
-                'city' : ad['detail']['location'].replace(",", "").replace(" ", "").strip(),
+                'year' : int(year),
                 'price' : int(price.replace(",", "").replace(" ", "").strip())
             })
 
@@ -77,11 +85,12 @@ for page in range(1,31) :
             brand = brand.lower()
         if model.isascii():
             model = model.lower()
-        cursor.execute('''insert into detail (brand,model,mileage,year,city,price)
-                        values(%s,%s,%s,%s,%s,%s)'''
-                       ,(brand,model,car['mileage'],car['year'],car['city'],car['price']))
+        cursor.execute('''insert into detail (brand,model,mileage,year,price)
+                        values(%s,%s,%s,%s,%s)'''
+                       ,(brand,model,car['mileage'],car['year'],car['price']))
     
     sql.commit()
+    os.system('cls')
 cursor.execute('''DELETE t1 FROM detail t1
                 JOIN detail t2 
                 ON 
@@ -89,7 +98,6 @@ cursor.execute('''DELETE t1 FROM detail t1
                 t1.model = t2.model AND
                 t1.mileage = t2.mileage AND
                 t1.year = t2.year AND
-                t1.city = t2.city AND
                 t1.price = t2.price AND
                 t1.id > t2.id;
                ''')
@@ -108,62 +116,87 @@ years = [row[3] for row in data_raw]
 
 prices = [row[0] for row in result_raw]
 
-brand_encoder = LabelEncoder()
-model_encoder = LabelEncoder()
-mileage_encoder = LabelEncoder()
+df_features = pd.DataFrame({
+     'brand' : brands,
+     'model' : models,
+     'mileage' : mileages,
+     'year' : years
+})
 
-brands_encoded = brand_encoder.fit_transform(brands)
-models_encoded = model_encoder.fit_transform(models)
-mileages_encoded = mileage_encoder.fit_transform(mileages)
+df_target = pd.Series(prices)
 
-data = np.column_stack((brands_encoded, models_encoded, mileages_encoded, years))
-result = np.array(prices).reshape(-1, 1)
+preprocessor = ColumnTransformer(
+     transformers=[
+          ('categorical', OneHotEncoder(handle_unknown='ignore'),['brand', 'model']),
+          ('numerical', 'passthrough', ['mileage', 'year'])
+     ]
+)
+
+model_pipeline = make_pipeline(preprocessor, DecisionTreeRegressor())
+
+x_train, x_test, y_train, y_test = train_test_split(df_features, df_target, test_size=0.2, random_state=42)
+
+model_pipeline.fit(x_train, y_train)
+
+predictions = model_pipeline.predict(x_test)
+
+r2 = r2_score(y_test, predictions)
+accuracy_percent = r2 * 100
+
 cursor.close()
 sql.close()
 
-learn = DecisionTreeRegressor()
-learn = learn.fit(data,result)
+attemps = 10
+while attemps > 0 :
 
-predictions = learn.predict(data)
-r2 = r2_score(result, predictions)
-accuracy_percent = r2 * 100
-user_car_raw = []
-print('Please write the required data in Persian\nAnd if you want to exit, press ctrl + C \n')
-while(user_car_raw!='exit') :
-    user_car_raw = ({
-        'brand' : input('Enter car brand : '),
-        'model' : input('Enter car model : '),
-        'mileage' : int(input('Enter mileage (km) : ')),
-        'year' : int(input('Enter manufacturing year : '))
-    })
+    os.system('cls')
+    
+    print(f'Please write the required data in Persian\nAnd if you want to exit, press ctrl + C \n\t\tYou have {attemps} attemps left')
 
-    in_brand = user_car_raw['brand'].replace(" ", "").strip()
-    in_model = user_car_raw['model'].replace(" ", "").strip()
-    if in_brand.isascii():
-            in_brand = in_brand.lower()
-    if in_model.isascii():
-            in_model = in_model.lower()
-    user_brand = in_brand
-    user_model = in_model
-    user_mileage = user_car_raw['mileage']
-    user_year = user_car_raw['year']
+    user_car_raw = []
 
-    if user_brand not in brand_encoder.classes_:
-        print(f"The brand '{user_brand}' does not exist in the trained data.")
+    for user in range(0,10) :
+        user_car_raw = ({
+            'brand' : input('Enter car brand : '),
+            'model' : input('Enter car model : '),
+            'mileage' : int(input('Enter mileage (km) : ')),
+            'year' : int(input('Enter manufacturing year : '))
+        })
 
-    if user_model not in model_encoder.classes_:
-        print(f"The brand '{user_model}' does not exist in the trained data.")
+        if int(user_car_raw['year']) > 1800 :
+                year = date(int(year), 6, 15)
+                shamsi_date = jdate.fromgregorian(date=year)
+                user_car_raw['year'] = int(shamsi_date.year)
 
-    user_brand_encoded = brand_encoder.transform([user_brand])
-    if user_model is int:
-         continue
-    else:
-        user_model_encoded = model_encoder.transform([user_model])
+        user_brand = user_car_raw['brand'].replace(" ", "").strip()
+        user_model = user_car_raw['model'].replace(" ", "").strip()
+    
+        if user_brand.isascii():
+                user_brand = user_brand.lower()
+        if user_model.isascii():
+                user_model = user_model.lower()
+    
+        df_input = pd.DataFrame([{ 
+            'brand' : user_brand,
+            'model' : user_model,
+            'mileage' : user_car_raw['mileage'],
+            'year' : user_car_raw['year']
+        }])
 
-    user_car_encoded = np.column_stack((user_brand_encoded, user_model_encoded, [user_mileage], [user_year]))
+        if user_brand not in df_features['brand'].unique() :
+            print(f"The brand '{user_brand}' does not exist in the trained data.")
+            continue
+        if user_model not in df_features['model'].unique() :
+            print(f"The brand '{user_model}' does not exist in the trained data.")
+            continue
 
-    user_price = learn.predict(user_car_encoded)
-    user_price = int(user_price[0])
+        try:
+            user_price = model_pipeline.predict(df_input)
+            user_price = int(user_price[0])
 
-    print(f"Predicted market price is {user_price:,} million tomans. ")
-    print(f"\nModel accuracy (R² score) : {accuracy_percent:.2f}%")
+            print(f"\nPredicted market price is {user_price:,} million tomans. ")
+            print(f"\nModel accuracy : {accuracy_percent:.2f}%\nAnd you have {attemps} attemps left")
+        except Exception as e:
+            print('Error in prediction : ', e)
+        
+        attemps -= 1
