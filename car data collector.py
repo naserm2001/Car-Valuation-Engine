@@ -128,7 +128,8 @@ predictions = learn.predict(data)
 r2 = r2_score(result, predictions)
 accuracy_percent = r2 * 100
 user_car_raw = []
-while(user_car_raw!='خروج') :
+print('Please write the required data in Persian\nAnd if you want to exit, press ctrl + C \n')
+while(user_car_raw!='exit') :
     user_car_raw = ({
         'brand' : input('Enter car brand : '),
         'model' : input('Enter car model : '),
@@ -148,12 +149,10 @@ while(user_car_raw!='خروج') :
     user_year = user_car_raw['year']
 
     if user_brand not in brand_encoder.classes_:
-        print(f"برند '{user_brand}' در دیتای آموزش دیده‌شده وجود ندارد.")
-        #exit()
+        print(f"The brand '{user_brand}' does not exist in the trained data.")
 
     if user_model not in model_encoder.classes_:
-        print(f"مدل '{user_model}' در دیتای آموزش دیده‌شده وجود ندارد.")
-        #exit()
+        print(f"The brand '{user_model}' does not exist in the trained data.")
 
     user_brand_encoded = brand_encoder.transform([user_brand])
     if user_model is int:
